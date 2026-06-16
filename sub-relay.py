@@ -27,6 +27,7 @@ SUPPORTED_GENERIC_SCHEMES = {
 UDP_ONLY_SCHEMES = {"hysteria", "hysteria2", "hy2", "tuic"}
 TCP_UDP_SCHEMES = {"ss", "shadowsocks"}
 TCP_ONLY_SCHEMES = {"vmess", "vless", "trojan", "anytls", "http", "https", "socks", "socks5", "ssr"}
+LOG_LEVELS = {"debug", "info", "warning", "error", "none"}
 
 
 def b64decode_text(value):
@@ -190,7 +191,15 @@ def targets_by_port(targets, selected_protocols):
     return by_port
 
 
-def emit_xray_config(targets, selected_protocols):
+def normalize_log_path(value):
+    if value == "stdout":
+        return "/dev/stdout"
+    if value == "stderr":
+        return "/dev/stderr"
+    return value
+
+
+def emit_xray_config(targets, selected_protocols, log_level, access_log, error_log):
     by_port = targets_by_port(targets, selected_protocols)
     inbounds = []
     for target in by_port.values():
@@ -209,8 +218,12 @@ def emit_xray_config(targets, selected_protocols):
                 },
             }
         )
+    log_config = {"access": normalize_log_path(access_log), "loglevel": log_level}
+    if error_log:
+        log_config["error"] = normalize_log_path(error_log)
+
     config = {
-        "log": {"access": "none", "loglevel": "warning"},
+        "log": log_config,
         "inbounds": inbounds,
         "outbounds": [{"tag": "direct", "protocol": "freedom"}],
     }
@@ -222,6 +235,9 @@ def main():
     parser.add_argument("subscriptions", nargs="*", help="Subscription URL(s) or local subscription file(s)")
     parser.add_argument("--subscription-list", help="File containing subscription URL(s), one per line")
     parser.add_argument("--protocols", default="auto", help="auto or comma-separated protocols: tcp,udp")
+    parser.add_argument("--log-level", default="warning", help="Xray log level: debug,info,warning,error,none")
+    parser.add_argument("--access-log", default="none", help="Xray access log: none, stdout, stderr, or file path")
+    parser.add_argument("--error-log", default="", help="Xray error log: stdout, stderr, file path, or empty for default")
     args = parser.parse_args()
 
     subscriptions = list(args.subscriptions)
@@ -250,7 +266,11 @@ def main():
     if invalid:
         print(f"Invalid protocol(s): {', '.join(invalid)}", file=sys.stderr)
         sys.exit(1)
-    emit_xray_config(targets, protocols)
+    log_level = args.log_level.strip().lower()
+    if log_level not in LOG_LEVELS:
+        print(f"Invalid log level: {args.log_level}", file=sys.stderr)
+        sys.exit(1)
+    emit_xray_config(targets, protocols, log_level, args.access_log.strip(), args.error_log.strip())
 
 
 if __name__ == "__main__":

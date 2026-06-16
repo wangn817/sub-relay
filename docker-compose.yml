@@ -8,6 +8,12 @@ services:
         https://example.com/sub/your-subscription
         # http://example.com/sub/another
       PROTOCOLS: "auto"
+      LOG_LEVEL: "warning"
+      ACCESS_LOG: "none"
+      ERROR_LOG: ""
       # 0 means apply once and keep container alive. Example periodic refresh: 3600
       REFRESH_SECONDS: "0"
+    # Uncomment if ACCESS_LOG or ERROR_LOG writes to /var/log/sub-relay/*.log
+    # volumes:
+    #   - ./logs:/var/log/sub-relay
     restart: unless-stopped

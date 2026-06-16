@@ -60,6 +60,9 @@ services:
       SUB_URLS: |
         https://example.com/sub/your-subscription
       PROTOCOLS: "auto"
+      LOG_LEVEL: "warning"
+      ACCESS_LOG: "none"
+      ERROR_LOG: ""
       REFRESH_SECONDS: "0"
     restart: unless-stopped
 ```

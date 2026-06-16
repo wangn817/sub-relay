@@ -59,6 +59,9 @@ services:
       SUB_URLS: |
         你的订阅链接
       PROTOCOLS: "auto"
+      LOG_LEVEL: "warning"
+      ACCESS_LOG: "none"
+      ERROR_LOG: ""
       REFRESH_SECONDS: "0"
     restart: unless-stopped
 ```

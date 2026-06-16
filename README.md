@@ -30,6 +30,9 @@ services:
       SUB_URLS: |
         https://example.com/sub/your-subscription
       PROTOCOLS: "auto"
+      LOG_LEVEL: "warning"
+      ACCESS_LOG: "none"
+      ERROR_LOG: ""
       REFRESH_SECONDS: "0"
     restart: unless-stopped
 ```
@@ -115,16 +118,53 @@ REFRESH_SECONDS: "3600"
 
 ## 日志
 
-生成的 Xray 配置会关闭访问日志：
+默认关闭访问日志，只保留 warning/error 级别运行日志：
 
-```json
-"log": {
-  "access": "none",
-  "loglevel": "warning"
-}
+```yaml
+LOG_LEVEL: "warning"
+ACCESS_LOG: "none"
+ERROR_LOG: ""
 ```
 
 这样不会持续输出每条连接的 `accepted ...` 记录。Xray 启动时显示的版本信息和 `A unified platform for anti-censorship.` 是启动横幅，不影响服务。
+
+排查问题时，可以临时输出访问日志到容器日志：
+
+```yaml
+LOG_LEVEL: "info"
+ACCESS_LOG: "stdout"
+ERROR_LOG: "stderr"
+```
+
+也可以把日志写入文件，并挂载到宿主机：
+
+```yaml
+services:
+  sub-relay:
+    image: ghcr.io/wangn817/sub-relay:latest
+    container_name: sub-relay
+    network_mode: host
+    environment:
+      SUB_URLS: |
+        https://example.com/sub/your-subscription
+      PROTOCOLS: "auto"
+      LOG_LEVEL: "warning"
+      ACCESS_LOG: "/var/log/sub-relay/access.log"
+      ERROR_LOG: "/var/log/sub-relay/error.log"
+      REFRESH_SECONDS: "0"
+    volumes:
+      - ./logs:/var/log/sub-relay
+    restart: unless-stopped
+```
+
+`LOG_LEVEL` 可选：`debug`、`info`、`warning`、`error`、`none`。
+
+`ACCESS_LOG` 可选：
+
+- `none`：关闭访问日志
+- `stdout`：输出到 `docker logs`
+- `stderr`：输出到错误日志流
+- `/var/log/sub-relay/access.log`：写入文件
 
 ## 不用 Docker
 
