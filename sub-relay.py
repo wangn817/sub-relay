@@ -192,7 +192,7 @@ def emit_xray_config(targets, protocols):
             }
         )
     config = {
-        "log": {"loglevel": "warning"},
+        "log": {"access": "none", "loglevel": "warning"},
         "inbounds": inbounds,
         "outbounds": [{"tag": "direct", "protocol": "freedom"}],
     }

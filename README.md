@@ -101,6 +101,19 @@ REFRESH_SECONDS: "3600"
 
 刷新时会重新生成 Xray 配置并重启 Xray 进程。
 
+## 日志
+
+生成的 Xray 配置会关闭访问日志：
+
+```json
+"log": {
+  "access": "none",
+  "loglevel": "warning"
+}
+```
+
+这样不会持续输出每条连接的 `accepted ...` 记录。Xray 启动时显示的版本信息和 `A unified platform for anti-censorship.` 是启动横幅，不影响服务。
+
 ## 不用 Docker
 
 生成 Xray 配置：
