@@ -57,6 +57,7 @@ services:
     container_name: sub-relay
     network_mode: host
     environment:
+      CORE: "xray"
       SUB_URLS: |
         https://example.com/sub/your-subscription
       PROTOCOLS: "tcp,udp"

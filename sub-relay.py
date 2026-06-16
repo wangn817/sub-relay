@@ -197,10 +197,38 @@ def emit_gost_config(targets, protocols):
     print(json.dumps({"services": services}, ensure_ascii=False, indent=2))
 
 
+def emit_xray_config(targets, protocols):
+    by_port = targets_by_port(targets)
+    network = ",".join(protocols)
+    inbounds = []
+    for target in by_port.values():
+        name_part = re.sub(r"[^a-zA-Z0-9_.-]+", "-", target["name"] or target["host"]).strip("-")[:40]
+        inbounds.append(
+            {
+                "tag": f"relay-{target['port']}-{name_part or 'node'}",
+                "listen": "0.0.0.0",
+                "port": target["port"],
+                "protocol": "dokodemo-door",
+                "settings": {
+                    "address": target["host"],
+                    "port": target["port"],
+                    "network": network,
+                },
+            }
+        )
+    config = {
+        "log": {"loglevel": "warning"},
+        "inbounds": inbounds,
+        "outbounds": [{"tag": "direct", "protocol": "freedom"}],
+    }
+    print(json.dumps(config, ensure_ascii=False, indent=2))
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Convert proxy subscription nodes to gost relay config.")
+    parser = argparse.ArgumentParser(description="Convert proxy subscription nodes to relay core config.")
     parser.add_argument("subscriptions", nargs="*", help="Subscription URL(s) or local subscription file(s)")
     parser.add_argument("--subscription-list", help="File containing subscription URL(s), one per line")
+    parser.add_argument("--core", choices=["xray", "gost"], default="xray")
     parser.add_argument("--protocols", default="tcp,udp", help="Comma-separated protocols: tcp,udp")
     args = parser.parse_args()
 
@@ -228,7 +256,10 @@ def main():
     if invalid:
         print(f"Invalid protocol(s): {', '.join(invalid)}", file=sys.stderr)
         sys.exit(1)
-    emit_gost_config(targets, protocols)
+    if args.core == "xray":
+        emit_xray_config(targets, protocols)
+    elif args.core == "gost":
+        emit_gost_config(targets, protocols)
 
 
 if __name__ == "__main__":

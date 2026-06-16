@@ -1,6 +1,8 @@
 # 订阅中转
 
-这个项目把代理订阅链接转换成 gost 中转配置，并在 Docker 容器里启动 gost 做 TCP/UDP 四层转发。
+这个项目把代理订阅链接转换成中转配置，并在 Docker 容器里启动转发核心做 TCP/UDP 四层转发。
+
+默认核心是 Xray，适合 hy2 / QUIC 这类 UDP 场景；gost 仍可作为轻量 TCP/普通 UDP 转发核心。
 
 中转规则保持：
 
@@ -26,6 +28,7 @@ services:
     container_name: sub-relay
     network_mode: host
     environment:
+      CORE: "xray"
       SUB_URLS: |
         https://example.com/sub/your-subscription
       PROTOCOLS: "tcp,udp"
@@ -45,6 +48,26 @@ docker compose up -d
 docker compose pull
 docker compose up -d
 ```
+
+## 核心选择
+
+默认：
+
+```yaml
+CORE: "xray"
+```
+
+可选：
+
+```yaml
+CORE: "gost"
+```
+
+建议：
+
+- hy2 / hysteria2 / QUIC / UDP 为主：用 `xray`
+- trojan / TCP 为主：`xray` 或 `gost` 都可以
+- 追求轻量且只跑 TCP：可以试 `gost`
 
 ## 多订阅
 
@@ -98,38 +121,48 @@ REFRESH_SECONDS: "0"
 REFRESH_SECONDS: "3600"
 ```
 
-刷新时会重新生成 gost 配置并重启 gost 进程。
+刷新时会重新生成配置并重启核心进程。
 
 ## 不用 Docker
 
-生成 gost 配置：
+生成 Xray 配置：
 
 ```bash
 apt-get update
 apt-get install -y python3 ca-certificates
 chmod +x sub-relay.py
-./sub-relay.py "https://example.com/sub/your-subscription" > gost.json
+./sub-relay.py --core xray "https://example.com/sub/your-subscription" > xray.json
+xray -config xray.json
+```
+
+生成 gost 配置：
+
+```bash
+./sub-relay.py --core gost "https://example.com/sub/your-subscription" > gost.json
 gost -C gost.json
 ```
 
-## gost 配置示例
+## Xray 配置示例
 
-脚本会为每个落地端口生成 TCP/UDP 服务，例如：
+脚本会为每个落地端口生成 `dokodemo-door` 入站，例如：
 
 ```json
 {
-  "services": [
+  "inbounds": [
     {
-      "name": "tcp-443-node",
-      "addr": ":443",
-      "handler": { "type": "tcp" },
-      "listener": { "type": "tcp" },
-      "forwarder": {
-        "nodes": [
-          { "name": "1.2.3.4:443", "addr": "1.2.3.4:443" }
-        ]
+      "tag": "relay-443-node",
+      "listen": "0.0.0.0",
+      "port": 443,
+      "protocol": "dokodemo-door",
+      "settings": {
+        "address": "1.2.3.4",
+        "port": 443,
+        "network": "tcp,udp"
       }
     }
+  ],
+  "outbounds": [
+    { "tag": "direct", "protocol": "freedom" }
   ]
 }
 ```
