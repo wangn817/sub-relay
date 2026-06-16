@@ -1,5 +1,3 @@
-FROM gogost/gost:latest AS gost
-
 FROM alpine:3.20 AS xray
 ARG TARGETARCH
 RUN apk add --no-cache ca-certificates curl unzip \
@@ -17,7 +15,6 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates python3
 
 WORKDIR /app
-COPY --from=gost /bin/gost /usr/local/bin/gost
 COPY --from=xray /out/xray /usr/local/bin/xray
 COPY sub-relay.py /app/sub-relay.py
 COPY entrypoint.sh /app/entrypoint.sh

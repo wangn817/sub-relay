@@ -172,31 +172,6 @@ def targets_by_port(targets):
     return by_port
 
 
-def emit_gost_config(targets, protocols):
-    by_port = targets_by_port(targets)
-    services = []
-    for target in by_port.values():
-        for proto in protocols:
-            name_part = re.sub(r"[^a-zA-Z0-9_.-]+", "-", target["name"] or target["host"]).strip("-")[:40]
-            services.append(
-                {
-                    "name": f"{proto}-{target['port']}-{name_part or 'relay'}",
-                    "addr": f":{target['port']}",
-                    "handler": {"type": proto},
-                    "listener": {"type": proto},
-                    "forwarder": {
-                        "nodes": [
-                            {
-                                "name": f"{target['host']}:{target['port']}",
-                                "addr": f"{target['host']}:{target['port']}",
-                            }
-                        ]
-                    },
-                }
-            )
-    print(json.dumps({"services": services}, ensure_ascii=False, indent=2))
-
-
 def emit_xray_config(targets, protocols):
     by_port = targets_by_port(targets)
     network = ",".join(protocols)
@@ -225,10 +200,9 @@ def emit_xray_config(targets, protocols):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Convert proxy subscription nodes to relay core config.")
+    parser = argparse.ArgumentParser(description="Convert proxy subscription nodes to Xray relay config.")
     parser.add_argument("subscriptions", nargs="*", help="Subscription URL(s) or local subscription file(s)")
     parser.add_argument("--subscription-list", help="File containing subscription URL(s), one per line")
-    parser.add_argument("--core", choices=["xray", "gost"], default="xray")
     parser.add_argument("--protocols", default="tcp,udp", help="Comma-separated protocols: tcp,udp")
     args = parser.parse_args()
 
@@ -256,10 +230,7 @@ def main():
     if invalid:
         print(f"Invalid protocol(s): {', '.join(invalid)}", file=sys.stderr)
         sys.exit(1)
-    if args.core == "xray":
-        emit_xray_config(targets, protocols)
-    elif args.core == "gost":
-        emit_gost_config(targets, protocols)
+    emit_xray_config(targets, protocols)
 
 
 if __name__ == "__main__":

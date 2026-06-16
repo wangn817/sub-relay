@@ -1,8 +1,6 @@
 # 订阅中转
 
-这个项目把代理订阅链接转换成中转配置，并在 Docker 容器里启动转发核心做 TCP/UDP 四层转发。
-
-默认核心是 Xray，适合 hy2 / QUIC 这类 UDP 场景；gost 仍可作为轻量 TCP/普通 UDP 转发核心。
+这个项目把代理订阅链接转换成 Xray `dokodemo-door` 中转配置，并在 Docker 容器里启动 Xray 做 TCP/UDP 四层转发。
 
 中转规则保持：
 
@@ -15,6 +13,7 @@
 - 支持常见订阅格式：`vmess://`、`vless://`、`trojan://`、`ss://`、`ssr://`、`shadowsocks://`、`anytls://`、`hysteria2://`、`hy2://`、`tuic://` 等能解析出目标地址和端口的节点。
 - 不解密、不改代理协议，只做四层转发。
 - 默认同时转发 TCP 和 UDP。
+- 适合 hy2 / hysteria2 / QUIC 这类 UDP 场景。
 - 如果订阅里多个节点使用同一个落地端口但目标 IP 不同，同一台中转机同一个公网 IP 不能同时转发它们，脚本会报“端口冲突”。
 
 ## Docker 部署
@@ -28,7 +27,6 @@ services:
     container_name: sub-relay
     network_mode: host
     environment:
-      CORE: "xray"
       SUB_URLS: |
         https://example.com/sub/your-subscription
       PROTOCOLS: "tcp,udp"
@@ -48,26 +46,6 @@ docker compose up -d
 docker compose pull
 docker compose up -d
 ```
-
-## 核心选择
-
-默认：
-
-```yaml
-CORE: "xray"
-```
-
-可选：
-
-```yaml
-CORE: "gost"
-```
-
-建议：
-
-- hy2 / hysteria2 / QUIC / UDP 为主：用 `xray`
-- trojan / TCP 为主：`xray` 或 `gost` 都可以
-- 追求轻量且只跑 TCP：可以试 `gost`
 
 ## 多订阅
 
@@ -121,7 +99,7 @@ REFRESH_SECONDS: "0"
 REFRESH_SECONDS: "3600"
 ```
 
-刷新时会重新生成配置并重启核心进程。
+刷新时会重新生成 Xray 配置并重启 Xray 进程。
 
 ## 不用 Docker
 
@@ -131,15 +109,8 @@ REFRESH_SECONDS: "3600"
 apt-get update
 apt-get install -y python3 ca-certificates
 chmod +x sub-relay.py
-./sub-relay.py --core xray "https://example.com/sub/your-subscription" > xray.json
+./sub-relay.py "https://example.com/sub/your-subscription" > xray.json
 xray -config xray.json
-```
-
-生成 gost 配置：
-
-```bash
-./sub-relay.py --core gost "https://example.com/sub/your-subscription" > gost.json
-gost -C gost.json
 ```
 
 ## Xray 配置示例
