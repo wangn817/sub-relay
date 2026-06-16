@@ -1,10 +1,8 @@
 FROM gogost/gost:latest AS gost
 
-FROM debian:12-slim
+FROM alpine:3.20
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends iptables python3 ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache ca-certificates iptables python3
 
 WORKDIR /app
 COPY --from=gost /bin/gost /usr/local/bin/gost
