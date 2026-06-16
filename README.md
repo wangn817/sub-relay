@@ -12,7 +12,7 @@
 
 - 支持常见订阅格式：`vmess://`、`vless://`、`trojan://`、`ss://`、`ssr://`、`shadowsocks://`、`anytls://`、`hysteria2://`、`hy2://`、`tuic://` 等能解析出目标地址和端口的节点。
 - 不解密、不改代理协议，只做四层转发。
-- 默认同时转发 TCP 和 UDP。
+- 默认按节点协议自动选择 TCP/UDP，避免 hy2 这类 UDP 节点额外占用同端口 TCP。
 - 适合 hy2 / hysteria2 / QUIC 这类 UDP 场景。
 - 如果订阅里多个节点使用同一个落地端口但目标 IP 不同，同一台中转机同一个公网 IP 不能同时转发它们，脚本会报“端口冲突”。
 
@@ -29,7 +29,7 @@ services:
     environment:
       SUB_URLS: |
         https://example.com/sub/your-subscription
-      PROTOCOLS: "tcp,udp"
+      PROTOCOLS: "auto"
       REFRESH_SECONDS: "0"
     restart: unless-stopped
 ```
@@ -68,6 +68,18 @@ SUB_URLS: "https://example.com/sub/a,https://example.com/sub/b"
 ## 协议
 
 默认：
+
+```yaml
+PROTOCOLS: "auto"
+```
+
+自动模式规则：
+
+- `hy2` / `hysteria2` / `hysteria` / `tuic`：只监听 UDP
+- `trojan` / `vless` / `vmess` / `anytls` / `http` / `socks`：只监听 TCP
+- `ss` / `shadowsocks`：监听 TCP 和 UDP
+
+强制同时转发 TCP 和 UDP：
 
 ```yaml
 PROTOCOLS: "tcp,udp"
@@ -141,7 +153,7 @@ xray -config xray.json
       "settings": {
         "address": "1.2.3.4",
         "port": 443,
-        "network": "tcp,udp"
+        "network": "tcp"
       }
     }
   ],

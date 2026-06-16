@@ -58,7 +58,7 @@ services:
     environment:
       SUB_URLS: |
         你的订阅链接
-      PROTOCOLS: "tcp,udp"
+      PROTOCOLS: "auto"
       REFRESH_SECONDS: "0"
     restart: unless-stopped
 ```

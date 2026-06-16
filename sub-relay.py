@@ -24,6 +24,10 @@ SUPPORTED_GENERIC_SCHEMES = {
     "shadowsocks",
 }
 
+UDP_ONLY_SCHEMES = {"hysteria", "hysteria2", "hy2", "tuic"}
+TCP_UDP_SCHEMES = {"ss", "shadowsocks"}
+TCP_ONLY_SCHEMES = {"vmess", "vless", "trojan", "anytls", "http", "https", "socks", "socks5", "ssr"}
+
 
 def b64decode_text(value):
     text = value.strip()
@@ -153,31 +157,45 @@ def unique_targets(nodes):
     return targets
 
 
-def targets_by_port(targets):
+def target_protocols(target, selected_protocols):
+    if selected_protocols != ["auto"]:
+        return selected_protocols
+    scheme = target["scheme"]
+    if scheme in UDP_ONLY_SCHEMES:
+        return ["udp"]
+    if scheme in TCP_UDP_SCHEMES:
+        return ["tcp", "udp"]
+    if scheme in TCP_ONLY_SCHEMES:
+        return ["tcp"]
+    return ["tcp", "udp"]
+
+
+def targets_by_port(targets, selected_protocols):
     by_port = {}
     conflicts = []
     for target in targets:
         port = target["port"]
         current = by_port.get(port)
-        if current and current["host"] != target["host"]:
-            conflicts.append((port, current["host"], target["host"]))
+        target["protocols"] = target_protocols(target, selected_protocols)
+        if current and (current["host"] != target["host"] or current["protocols"] != target["protocols"]):
+            conflicts.append((port, current["host"], ",".join(current["protocols"]), target["host"], ",".join(target["protocols"])))
         else:
             by_port[port] = target
 
     if conflicts:
-        print("端口冲突：同一个中转端口不能同时转发到多个落地 IP。", file=sys.stderr)
-        for port, first, second in conflicts:
-            print(f"  {port}: {first} / {second}", file=sys.stderr)
+        print("端口冲突：同一个中转端口不能同时转发到多个不同目标或协议组合。", file=sys.stderr)
+        for port, first_host, first_protocols, second_host, second_protocols in conflicts:
+            print(f"  {port}: {first_host} ({first_protocols}) / {second_host} ({second_protocols})", file=sys.stderr)
         sys.exit(2)
     return by_port
 
 
-def emit_xray_config(targets, protocols):
-    by_port = targets_by_port(targets)
-    network = ",".join(protocols)
+def emit_xray_config(targets, selected_protocols):
+    by_port = targets_by_port(targets, selected_protocols)
     inbounds = []
     for target in by_port.values():
         name_part = re.sub(r"[^a-zA-Z0-9_.-]+", "-", target["name"] or target["host"]).strip("-")[:40]
+        network = ",".join(target["protocols"])
         inbounds.append(
             {
                 "tag": f"relay-{target['port']}-{name_part or 'node'}",
@@ -203,7 +221,7 @@ def main():
     parser = argparse.ArgumentParser(description="Convert proxy subscription nodes to Xray relay config.")
     parser.add_argument("subscriptions", nargs="*", help="Subscription URL(s) or local subscription file(s)")
     parser.add_argument("--subscription-list", help="File containing subscription URL(s), one per line")
-    parser.add_argument("--protocols", default="tcp,udp", help="Comma-separated protocols: tcp,udp")
+    parser.add_argument("--protocols", default="auto", help="auto or comma-separated protocols: tcp,udp")
     args = parser.parse_args()
 
     subscriptions = list(args.subscriptions)
@@ -226,7 +244,9 @@ def main():
         print("No supported nodes found in subscription.", file=sys.stderr)
         sys.exit(1)
     protocols = [p.strip().lower() for p in args.protocols.split(",") if p.strip()]
-    invalid = sorted(set(protocols) - {"tcp", "udp"})
+    invalid = sorted(set(protocols) - {"auto", "tcp", "udp"})
+    if "auto" in protocols and len(protocols) > 1:
+        invalid = ["auto with tcp/udp"]
     if invalid:
         print(f"Invalid protocol(s): {', '.join(invalid)}", file=sys.stderr)
         sys.exit(1)

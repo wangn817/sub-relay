@@ -3,7 +3,7 @@ set -eu
 
 : "${SUB_URLS:=${SUB_URL:-}}"
 : "${SUB_URLS:?Set SUB_URLS or SUB_URL to your subscription URL(s)}"
-: "${PROTOCOLS:=tcp,udp}"
+: "${PROTOCOLS:=auto}"
 : "${REFRESH_SECONDS:=0}"
 
 write_subscriptions() {

@@ -59,7 +59,7 @@ services:
     environment:
       SUB_URLS: |
         https://example.com/sub/your-subscription
-      PROTOCOLS: "tcp,udp"
+      PROTOCOLS: "auto"
       REFRESH_SECONDS: "0"
     restart: unless-stopped
 ```
