@@ -172,34 +172,6 @@ def targets_by_port(targets):
     return by_port
 
 
-def emit_iptables_script(targets, protocols, chain, include_output):
-    by_port = targets_by_port(targets)
-    print("#!/bin/sh")
-    print("set -eu")
-    print("")
-    print("# Enable IPv4 forwarding on the host/container namespace.")
-    print("sysctl -w net.ipv4.ip_forward=1 >/dev/null")
-    print("")
-    print(f"iptables -t nat -N {chain} 2>/dev/null || true")
-    print(f"iptables -t nat -F {chain}")
-    print(f"iptables -t nat -C PREROUTING -j {chain} 2>/dev/null || iptables -t nat -A PREROUTING -j {chain}")
-    if include_output:
-        print(f"iptables -t nat -C OUTPUT -j {chain} 2>/dev/null || iptables -t nat -A OUTPUT -j {chain}")
-    print("iptables -t nat -C POSTROUTING -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -j MASQUERADE")
-    print("")
-
-    for target in by_port.values():
-        comment = target["name"].replace('"', "'")[:80]
-        for proto in protocols:
-            print(
-                f'iptables -t nat -A {chain} -p {proto} --dport {target["port"]} '
-                f'-m comment --comment "{comment}" -j DNAT --to-destination {target["host"]}:{target["port"]}'
-            )
-
-    print("")
-    print(f'echo "loaded {len(by_port)} relay port(s) into iptables chain {chain}"')
-
-
 def emit_gost_config(targets, protocols):
     by_port = targets_by_port(targets)
     services = []
@@ -226,13 +198,10 @@ def emit_gost_config(targets, protocols):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Convert proxy subscription nodes to relay backend config.")
+    parser = argparse.ArgumentParser(description="Convert proxy subscription nodes to gost relay config.")
     parser.add_argument("subscriptions", nargs="*", help="Subscription URL(s) or local subscription file(s)")
     parser.add_argument("--subscription-list", help="File containing subscription URL(s), one per line")
-    parser.add_argument("--backend", choices=["iptables", "gost"], default="iptables")
     parser.add_argument("--protocols", default="tcp,udp", help="Comma-separated protocols: tcp,udp")
-    parser.add_argument("--chain", default="SUB_RELAY", help="iptables nat chain name")
-    parser.add_argument("--include-output", action="store_true", help="Also hook OUTPUT for local traffic tests")
     args = parser.parse_args()
 
     subscriptions = list(args.subscriptions)
@@ -259,10 +228,7 @@ def main():
     if invalid:
         print(f"Invalid protocol(s): {', '.join(invalid)}", file=sys.stderr)
         sys.exit(1)
-    if args.backend == "iptables":
-        emit_iptables_script(targets, protocols, args.chain, args.include_output)
-    elif args.backend == "gost":
-        emit_gost_config(targets, protocols)
+    emit_gost_config(targets, protocols)
 
 
 if __name__ == "__main__":

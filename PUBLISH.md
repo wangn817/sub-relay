@@ -57,7 +57,6 @@ services:
     container_name: sub-relay
     network_mode: host
     environment:
-      BACKEND: "gost"
       SUB_URLS: |
         https://example.com/sub/your-subscription
       PROTOCOLS: "tcp,udp"
@@ -69,16 +68,4 @@ services:
 
 ```bash
 docker compose up -d
-```
-
-## 什么时候还需要 cap_add
-
-默认 `BACKEND=gost` 不需要 `NET_ADMIN`，因为它只是监听端口并做用户态转发。
-
-只有切换到 `BACKEND=iptables` 时，compose 里才需要加：
-
-```yaml
-cap_add:
-  - NET_ADMIN
-  - NET_RAW
 ```

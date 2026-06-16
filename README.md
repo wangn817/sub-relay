@@ -1,79 +1,106 @@
 # 订阅中转
 
-这个方案把订阅链接转成中转服务配置。默认使用 gost，iptables 作为可选后端。
+这个项目把代理订阅链接转换成 gost 中转配置，并在 Docker 容器里启动 gost 做 TCP/UDP 四层转发。
 
-- `gost`：默认后端，用 gost 监听端口并转发，日志和运行状态更直观，不直接改宿主机防火墙规则。
-- `iptables`：纯 DNAT 转发，最轻，不跑常驻代理进程。
+中转规则保持：
 
-两种后端都会保持：中转机监听端口 = 落地机端口。
+```text
+中转机端口 = 落地机端口
+```
 
 ## 适用范围
 
 - 支持常见订阅格式：`vmess://`、`vless://`、`trojan://`、`ss://`、`ssr://`、`shadowsocks://`、`anytls://`、`hysteria2://`、`hy2://`、`tuic://` 等能解析出目标地址和端口的节点。
-- 本方案不解密、不改代理协议，只做四层端口转发。
-- 如果订阅里多个节点使用同一个落地端口但目标 IP 不同，同一台中转机同一个公网 IP 不能同时转发它们。脚本会报“端口冲突”。
+- 不解密、不改代理协议，只做四层转发。
+- 默认同时转发 TCP 和 UDP。
+- 如果订阅里多个节点使用同一个落地端口但目标 IP 不同，同一台中转机同一个公网 IP 不能同时转发它们，脚本会报“端口冲突”。
 
 ## Docker 部署
 
-在中转服务器安装 Docker 后，把本目录上传到服务器，然后执行：
+直接使用已发布镜像：
 
-```bash
-docker compose up -d --build
+```yaml
+services:
+  sub-relay:
+    image: ghcr.io/wangn817/sub-relay:latest
+    container_name: sub-relay
+    network_mode: host
+    environment:
+      SUB_URLS: |
+        https://example.com/sub/your-subscription
+      PROTOCOLS: "tcp,udp"
+      REFRESH_SECONDS: "0"
+    restart: unless-stopped
 ```
 
-如果已经发布成镜像，服务器只需要使用 `docker-compose.image.yml` 这种写法，把 `image:` 改成你的镜像地址后执行：
+启动：
 
 ```bash
 docker compose up -d
 ```
 
-发布镜像的方法见 `PUBLISH.md`。
+更新：
 
-默认订阅链接在 `docker-compose.yml` 里。支持多个订阅链接，一行一个：
-
-```yaml
-BACKEND: "gost"
-SUB_URLS: |
-  https://example.com/sub/your-subscription
-  http://example.com/sub/another
+```bash
+docker compose pull
+docker compose up -d
 ```
 
-也可以用逗号分隔：
+## 多订阅
+
+一行一个：
 
 ```yaml
-SUB_URLS: "http://a.example/sub,https://b.example/sub"
+SUB_URLS: |
+  https://example.com/sub/a
+  https://example.com/sub/b
+```
+
+或者逗号分隔：
+
+```yaml
+SUB_URLS: "https://example.com/sub/a,https://example.com/sub/b"
 ```
 
 旧配置 `SUB_URL: "..."` 仍然兼容。
 
-选择后端，默认是：
+## 协议
+
+默认：
 
 ```yaml
-BACKEND: "gost"
+PROTOCOLS: "tcp,udp"
 ```
 
-也可以切回 iptables：
+只转发 TCP：
 
 ```yaml
-BACKEND: "iptables"
+PROTOCOLS: "tcp"
 ```
 
-如果需要定时刷新订阅，把 `REFRESH_SECONDS` 改成秒数，例如每小时刷新：
+只转发 UDP：
+
+```yaml
+PROTOCOLS: "udp"
+```
+
+## 定时刷新
+
+默认启动时拉取一次订阅：
+
+```yaml
+REFRESH_SECONDS: "0"
+```
+
+每小时刷新一次：
 
 ```yaml
 REFRESH_SECONDS: "3600"
 ```
 
-使用 `gost` 后端时，也建议保留 `network_mode: host`，这样 gost 可以直接监听中转机端口。`gost` 后端不需要 `NET_ADMIN`，但保留也不影响运行；如果你只用 gost，可以删掉 `cap_add`。
+刷新时会重新生成 gost 配置并重启 gost 进程。
 
-使用 `iptables` 后端时，容器必须使用：
-
-- `network_mode: host`
-- `cap_add: NET_ADMIN, NET_RAW`
-
-否则容器里的 iptables 规则不会作用到中转机网络命名空间。
-
-## 不用 Docker，直接在 Debian 执行
+## 不用 Docker
 
 生成 gost 配置：
 
@@ -81,28 +108,13 @@ REFRESH_SECONDS: "3600"
 apt-get update
 apt-get install -y python3 ca-certificates
 chmod +x sub-relay.py
-./sub-relay.py --backend gost \
-  "https://example.com/sub/your-subscription" \
-  > gost.json
+./sub-relay.py "https://example.com/sub/your-subscription" > gost.json
 gost -C gost.json
 ```
 
-生成并应用 iptables 规则：
+## gost 配置示例
 
-```bash
-apt-get update
-apt-get install -y iptables python3 ca-certificates
-chmod +x sub-relay.py
-./sub-relay.py --backend iptables \
-  "https://example.com/sub/your-subscription" \
-  "http://example.com/sub/another" \
-  > apply-sub-relay.sh
-sh apply-sub-relay.sh
-```
-
-## gost 后端逻辑
-
-脚本会为每个落地端口生成一个 TCP 服务和一个 UDP 服务，例如：
+脚本会为每个落地端口生成 TCP/UDP 服务，例如：
 
 ```json
 {
@@ -121,46 +133,3 @@ sh apply-sub-relay.sh
   ]
 }
 ```
-
-也就是：gost 监听中转机 `:443`，再转发到落地机 `1.2.3.4:443`。
-
-`gost` 后端更适合想看日志、少碰系统防火墙、后续扩展健康检查或更多转发策略的场景。
-
-## iptables 后端逻辑
-
-脚本会创建一个 nat 表链，默认叫 `SUB_RELAY`：
-
-```bash
-iptables -t nat -N SUB_RELAY
-iptables -t nat -A PREROUTING -j SUB_RELAY
-iptables -t nat -A POSTROUTING -j MASQUERADE
-```
-
-每个节点生成类似规则：
-
-```bash
-iptables -t nat -A SUB_RELAY -p tcp --dport 443 -j DNAT --to-destination 1.2.3.4:443
-iptables -t nat -A SUB_RELAY -p udp --dport 443 -j DNAT --to-destination 1.2.3.4:443
-```
-
-也就是：访问中转机 `中转IP:443` 会被转到落地机 `1.2.3.4:443`。
-
-## iptables 查看和清理
-
-查看：
-
-```bash
-iptables -t nat -S SUB_RELAY
-iptables -t nat -S PREROUTING
-iptables -t nat -S POSTROUTING
-```
-
-清理：
-
-```bash
-iptables -t nat -D PREROUTING -j SUB_RELAY 2>/dev/null || true
-iptables -t nat -F SUB_RELAY 2>/dev/null || true
-iptables -t nat -X SUB_RELAY 2>/dev/null || true
-```
-
-如果你确认这台机器只用这一套转发，可以额外手工删除 `POSTROUTING -j MASQUERADE`；脚本没有自动删它，避免影响其他转发。

@@ -56,7 +56,6 @@ services:
     container_name: sub-relay
     network_mode: host
     environment:
-      BACKEND: "gost"
       SUB_URLS: |
         你的订阅链接
       PROTOCOLS: "tcp,udp"

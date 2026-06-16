@@ -3,17 +3,11 @@ services:
     build: .
     container_name: sub-relay
     network_mode: host
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
     environment:
-      # BACKEND can be iptables or gost.
-      BACKEND: "gost"
       SUB_URLS: |
         https://example.com/sub/your-subscription
         # http://example.com/sub/another
       PROTOCOLS: "tcp,udp"
-      CHAIN: "SUB_RELAY"
       # 0 means apply once and keep container alive. Example periodic refresh: 3600
       REFRESH_SECONDS: "0"
     restart: unless-stopped
